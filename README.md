@@ -1,4 +1,4 @@
-# proceduralplanet
+# [UNITY] procedural planet octree renderer
 dual contour octree realtime renderer for point cloud data or procedural planet generation  
 there's still work to do in order to fix the cracks between contiguous chunks with different level-of-detail (these gaps in the screenshots)
 the algorithm used is basically dual contouring, but at the moment instead of calculating the quadratic error function 
