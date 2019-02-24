@@ -1,0 +1,9 @@
+Shaders/ScreenSpaceShader.shader.meta
+*.meta
+Library/
+Logs/
+ProjectSettings/
+Assets/Resources/LibNoise.Unity/
+Resources/LibNoise.Unity/Generator/
+#Resources/LibNoise.Unity/Generator/*.cs
+#Resources/LibNoise.Unity/Generator/Perlin.cs
