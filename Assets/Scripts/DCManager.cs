@@ -57,10 +57,11 @@ public class DCManager : MonoBehaviour {
 
     [HideInInspector]
     public static Dictionary<Vector3, Chunk> chunkDictionary = new Dictionary<Vector3, Chunk>();
+    public Dictionary<string, CellEdge> edgeDictionaryOrphansGlobal = new Dictionary<string, CellEdge>();
     public static List<Chunk> chunkList = new List<Chunk>();
 
     public  MeshGenerator meshGenerator;
-    private bool needsGlobalMeshUpdate = true;
+    //private bool needsGlobalMeshUpdate = true;
 
     void Start () {
 
@@ -76,7 +77,6 @@ public class DCManager : MonoBehaviour {
         rootChunk = root_cube.AddComponent<Chunk>();
         rootChunk.transform.parent = gameObject.transform;
         rootChunk.createCube(null, this, radius, 0, 0, 0, 0, "root");
-       
 
     }
 

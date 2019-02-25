@@ -21,15 +21,8 @@ public class Chunk : MonoBehaviour {
     public Boolean isRestoringParent = false;
     public Mesh mesh;
     public Dictionary<string, CellEdge> edgeDictionary = new Dictionary<string, CellEdge>();
-
-    public Dictionary<string, CellEdge> edgeDictionaryXPlusNormalPatch = new Dictionary<string, CellEdge>();
-    public Dictionary<string, CellEdge> edgeDictionaryXMinusNormalPatch = new Dictionary<string, CellEdge>();
-
-    public Dictionary<string, CellEdge> edgeDictionaryYPlusNormalPatch = new Dictionary<string, CellEdge>();
-    public Dictionary<string, CellEdge> edgeDictionaryYMinusNormalPatch = new Dictionary<string, CellEdge>();
-
-    public Dictionary<string, CellEdge> edgeDictionaryZPlusNormalPatch = new Dictionary<string, CellEdge>();
-    public Dictionary<string, CellEdge> edgeDictionaryZMinusNormalPatch = new Dictionary<string, CellEdge>();
+    public Dictionary<string, CellEdge> edgeDictionaryOrphans = new Dictionary<string, CellEdge>();
+    
 
     public float distanceToPlayer = 100000000f;
 
@@ -38,6 +31,8 @@ public class Chunk : MonoBehaviour {
     public Boolean needsMeshUpdate = false;
 
     void Start () {
+
+        Debug.Log("new chunk!");
 		
 	}
 	
@@ -148,7 +143,10 @@ public class Chunk : MonoBehaviour {
         parent.isRestoringParent = true;
        
         parent.createCube(parent.parent, manager, edgeSize * 2, lodLevel - 1, transform.position.x + delta, transform.position.y + delta, transform.position.z + delta, name.Substring(0, name.Length - 4));
+        
+        // do these two lines do something?
         edgeDictionary.Clear();
+        edgeDictionaryOrphans.Clear();
        
         
     }
@@ -197,10 +195,7 @@ public class Chunk : MonoBehaviour {
         //mf.sharedMesh = m;
         //m = md.CreateMesh();
         manager.meshGenerator.RequestMapData(edgeSize, manager.subdivisions, transform.position, manager.cnoise, 
-            OnMapDataReceived, edgeDictionary, 
-            edgeDictionaryXPlusNormalPatch,
-            edgeDictionaryYPlusNormalPatch,
-            edgeDictionaryZPlusNormalPatch
+            OnMapDataReceived, edgeDictionary, edgeDictionaryOrphans
             );
 
         return this;
@@ -208,9 +203,16 @@ public class Chunk : MonoBehaviour {
     }
 
     public void OnMapDataReceived(MapData mapData) {
-        //Debug.Log("map data received ("+name+")"+mapData.edgeDictionary.Count);
-        //this.mapData = mapData;
+        
         //if(mapData.edgeDictionary.Count>0 || parent.isRestoringParent || isRestoringParent)
+
+
+        Debug.Log("mapData orphans count: "+mapData.edgeDictionaryOrphans.Count());
+
+        //store these orphans edges in a common big list, so that RequestMeshData can access all orphans across every chunk
+        // warning possibly thread safety issues :/
+        //manager.edgeDictionaryOrphansGlobal = manager.edgeDictionaryOrphansGlobal.Concat(mapData.edgeDictionaryOrphans).ToDictionary(x => x.Key, x => x.Value);
+
         manager.meshGenerator.RequestMeshData(mapData, OnMeshDataReceived);
 
        

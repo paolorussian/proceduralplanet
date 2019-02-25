@@ -21,11 +21,10 @@ public class MeshGenerator : MonoBehaviour {
     Vector3 position;
     int subdivisions;
 
-    public MapData GenerateTerrainData(float size, int subdivisions,Vector3 position, CustomImprovedNoise noise,
-        Dictionary<string, CellEdge> edgeDictionary, 
-        Dictionary<string, CellEdge> edgeDictionaryXPlusNormalPatch,
-        Dictionary<string, CellEdge> edgeDictionaryYPlusNormalPatch,
-        Dictionary<string, CellEdge> edgeDictionaryZPlusNormalPatch
+    public MapData GenerateTerrainData(float size, int subdivisions, Vector3 position, CustomImprovedNoise noise,
+        Dictionary<string, CellEdge> edgeDictionary,
+        Dictionary<string, CellEdge> edgeDictionaryOrphans
+
         ) {
 
         this.position = position;
@@ -34,7 +33,7 @@ public class MeshGenerator : MonoBehaviour {
 
         int flagIndex = 0;
         //float treshold = 0.4f;
-        float treshold = DCManager.radius*0.55f;
+        float treshold = DCManager.radius * 0.55f;
         Vector3 centerPoint;
         int i, x, y, z;
         Vector3[] edgeVertex;
@@ -44,17 +43,18 @@ public class MeshGenerator : MonoBehaviour {
         MapData mapData = new MapData();
         Vector3[] cube;
         float[] noiseCube;
-        
-        
-        // spigoli interni
-        for (x = 0; x <= subdivisions; x++) {
-            for (y = 0; y <= subdivisions; y++) {
-                for (z = 0; z <= subdivisions; z++) {
+
+
+        // trova gli spigoli che hanno intersezioni e dove: quando li trovi salvali in edgeDictionary
+        // con nome [punto fuori + "|"+ punto dentro], valore la cellEdge(che contiene i 4 centerPoints)
+        for (x = 0; x < subdivisions; x++) {
+            for (y = 0; y < subdivisions; y++) {
+                for (z = 0; z < subdivisions; z++) {
                     edgeList.Clear();
                     cube = new Vector3[8];
                     noiseCube = new float[8];
                     edgeVertex = new Vector3[12];
-                    
+
 
                     numEdgesWithIntersections = 0;
                     flagIndex = 0;
@@ -78,17 +78,17 @@ public class MeshGenerator : MonoBehaviour {
                     cube[6] = v6;
                     cube[7] = v7;
 
-                   
+
 
                     for (i = 0; i < 8; i++) {
                         noiseCube[i] = DCManager.radius - (cube[i] + position).magnitude;
-                     
-                        if (noiseCube[i] <= treshold) flagIndex |= 1 << i; 
+
+                        if (noiseCube[i] <= treshold) flagIndex |= 1 << i;
                     }
 
                     if (flagIndex == 0 || flagIndex == 255) { continue; }
-                  
-                   
+
+
                     // prepara gli spigoli e ordinali in un dizionario
                     edgeList.Add(new CellEdge(v0, v1, noiseCube[0], noiseCube[1], position, treshold) { px = x, py = y, pz = z });
                     edgeList.Add(new CellEdge(v2, v3, noiseCube[2], noiseCube[3], position, treshold) { px = x, py = y, pz = z });
@@ -111,30 +111,39 @@ public class MeshGenerator : MonoBehaviour {
                     centerPoint = new Vector3();
                     foreach (CellEdge ce in edgeList) {
                         if (ce.hasIntersection) {
-                            CellEdge c = getOrAdd(ce, edgeDictionary);
+                            CellEdge c = getOrAdd(ce, edgeDictionaryOrphans);
                             numEdgesWithIntersections++;
                             centerPoint += ce.intersectionPoint;
                         }
                     }
+
+                    //salta le celle tutte piene e quelle tutte vuote
                     if (numEdgesWithIntersections == 0 || numEdgesWithIntersections == 8) continue;
-                    centerPoint = centerPoint / numEdgesWithIntersections;
 
                     // ora che sappiamo quanti spigoli hanno intersezioni calcola il punto medio tra loro e settalo come punto centrale della cella
                     // dual contour - per infighettarlo qua dovresti applicare la QEF, invece del punto medio tra gli spigoli che hanno intersezioni
+                    centerPoint = centerPoint / numEdgesWithIntersections;
+
+
                     int k = 0;
                     foreach (CellEdge ce in edgeList) {
                         if (ce.hasIntersection) {
-                            CellEdge c = getOrAdd(ce, edgeDictionary);
+                            CellEdge c = getOrAdd(ce, edgeDictionaryOrphans);
+
+                            //if (numEdgesWithIntersections == 4) {
+                            // c = getOrAdd(ce, edgeDictionary);
                             //if (c.cells[k] != Vector3.zero) Debug.Log("ERROR"); //TODO: check why I would possibly overwrite a preesisting(?) [k] value
-                            c.cells[k] = centerPoint;
+                            c.cells[k] = centerPoint; //questa cosa della k, vista dopo anni, sembra funzionare per caso...
 
                         }
                         k++;
                         if (k > 3) k = 0;
                     }
-                    
 
-                  
+                    //Debug.Log("edgeDictionaryOrphans:" + edgeDictionaryOrphans.Count());
+
+
+
 
 
 
@@ -142,38 +151,55 @@ public class MeshGenerator : MonoBehaviour {
             }
         } // fine del mega ciclo
 
-        
-       
+
+
+        List<String> edgesKeysToMove = new List<String>();//edgeDictionaryOrphans.Keys.Except(keysToInclude).ToList();
+      
+        foreach (CellEdge ce in edgeDictionaryOrphans.Values) {
+
+            if (ce.cells.Count(v => v != Vector3.zero) == 4) {
+                edgesKeysToMove.Add(ce.name);
+            }
+        }
+
+        foreach (String key in edgesKeysToMove) { 
+            CellEdge ce = edgeDictionaryOrphans[key];
+            getOrAdd(ce, edgeDictionary);
+            edgeDictionaryOrphans.Remove(ce.name);
+            
+        }
+
         mapData.edgeDictionary = edgeDictionary;
-        mapData.edgeDictionaryXPlusNormalPatch = edgeDictionaryXPlusNormalPatch;
-        //mapData.edgeDictionaryYPlusNormalPatch = edgeDictionaryYPlusNormalPatch;
-        //mapData.edgeDictionaryZPlusNormalPatch = edgeDictionaryZPlusNormalPatch;
+        mapData.edgeDictionaryOrphans = edgeDictionaryOrphans;
+        
 
 
         return mapData;
     }
 
     public MeshData GenerateTerrainMesh(MapData mapData) {
+
         MeshData meshData = new MeshData();
-        int orphans = 0;
+       
 
         //Debug.Log("restarting "+ mapData.edgeDictionary.Count());
 
         // per ogni spigolo del dizionario tira fuori i 4 punti centrali delle celle che lo condividono e collegali con 2 triangolis
         foreach (CellEdge edg in mapData.edgeDictionary.Values) {
 
-            
 
-            if ((   edg.px >= 0 && edg.px < subdivisions
-                &&  edg.py >= 0 && edg.py < subdivisions
-                &&  edg.pz >= 0 && edg.pz < subdivisions)) {
+            /*
+            if ((edg.px >= 0 && edg.px < subdivisions
+                && edg.py >= 0 && edg.py < subdivisions
+                && edg.pz >= 0 && edg.pz < subdivisions)) {
+                */
 
                 List<Vector3> points = edg.cells.Cast<Vector3>().ToList();
                 //crea i 2 triangoli su tutti gli spigoli che sono condivisi da almeno 4 celle di questo stesso chunk
-                if (points.Count(v => v != Vector3.zero)==4) {
+                if (points.Count(v => v != Vector3.zero) == 4) {
 
                     //Gizmos.color = Color.blue;
-                   // Gizmos.DrawLine(edg.inV,edg.outV);
+                    // Gizmos.DrawLine(edg.inV,edg.outV);
 
                     if (edg.isFlipped) {
 
@@ -189,19 +215,9 @@ public class MeshGenerator : MonoBehaviour {
                            edg.cells[1],
                             MeshData.TYPE_NORMAL
                            );
-                        /*
-                        meshData.AddTriangle(
-                            edg.cells[2],
-                            edg.cells[3],
-                            edg.cells[0],
-                             MeshData.TYPE_NORMAL
-                            );
-                            */
-
-
 
                     } else {
-                       
+
                         meshData.AddTriangle(
                         edg.cells[0],
                         edg.cells[1],
@@ -214,23 +230,23 @@ public class MeshGenerator : MonoBehaviour {
                            edg.cells[3],
                             MeshData.TYPE_NORMAL
                            );
-                           
+
                     }
 
 
                 } else {
                     //orphans: these intersections has 1 to 3 cells only to triangulate
-                   
 
 
-                    Debug.Log("> orphan points");
+
+                    Debug.Log("there are orphan points in edgeDictionary");
                     //Debug.Log(edg.cells[0]+","+ edg.cells[1] + "," + edg.cells[2] + "," + edg.cells[3]);
 
                 }
 
 
 
-            }
+            
            
 
 
@@ -263,18 +279,19 @@ public class MeshGenerator : MonoBehaviour {
 
     }
   
-    public void RequestMapData(float edgeSize, int subdivisions, Vector3 position, CustomImprovedNoise noise, 
-        Action<MapData> callback, Dictionary<string, CellEdge> edgeDictionary, 
-        Dictionary<string, CellEdge> edgeDictionaryXPlusNormalPatch,
-        Dictionary<string, CellEdge> edgeDictionaryYPlusNormalPatch,
-        Dictionary<string, CellEdge> edgeDictionaryZPlusNormalPatch
+    public void RequestMapData(float edgeSize, 
+                                    int subdivisions, 
+                                    Vector3 position, 
+                                    CustomImprovedNoise noise, 
+                                    Action<MapData> callback, 
+                                    Dictionary<string, CellEdge> edgeDictionary, 
+                                    Dictionary<string, CellEdge> edgeDictionaryOrphans
 
         ) {
 
 
         ThreadStart threadStart = delegate {
-            MapDataThread(edgeSize, subdivisions, position, noise, callback, edgeDictionary, 
-                edgeDictionaryXPlusNormalPatch, edgeDictionaryYPlusNormalPatch, edgeDictionaryZPlusNormalPatch);
+            MapDataThread(edgeSize, subdivisions, position, noise, callback, edgeDictionary, edgeDictionaryOrphans);
         };
 
         new Thread(threadStart).Start();
@@ -282,16 +299,13 @@ public class MeshGenerator : MonoBehaviour {
     
   void MapDataThread(float edgeSize, int subdivisions, Vector3 position, CustomImprovedNoise noise, Action<MapData> callback, 
       Dictionary<string, CellEdge> edgeDictionary, 
-      Dictionary<string, CellEdge> edgeDictionaryXPlusNormalPatch,
-      Dictionary<string, CellEdge> edgeDictionaryYPlusNormalPatch,
-        Dictionary<string, CellEdge> edgeDictionaryZPlusNormalPatch
+      Dictionary<string, CellEdge> edgeDictionaryOrphans
       ) {
 
-        MapData mapData = GenerateTerrainData(edgeSize, subdivisions, position, noise, 
-            edgeDictionary, edgeDictionaryXPlusNormalPatch, edgeDictionaryYPlusNormalPatch, edgeDictionaryZPlusNormalPatch);
+        MapData mapData = GenerateTerrainData(edgeSize, subdivisions, position, noise, edgeDictionary, edgeDictionaryOrphans);
 
       lock (mapDataThreadInfoQueue) {
-          mapDataThreadInfoQueue.Enqueue(new MapThreadInfo<MapData>(callback, mapData, edgeDictionary));
+          mapDataThreadInfoQueue.Enqueue(new MapThreadInfo<MapData>(callback, mapData, edgeDictionary, edgeDictionaryOrphans));
       }
   }
   
@@ -301,11 +315,13 @@ public class MeshGenerator : MonoBehaviour {
         public readonly Action<T> callback;
         public readonly T parameter;
         public readonly Dictionary<string, CellEdge> edgeDictionary;
+        public readonly Dictionary<string, CellEdge> edgeDictionaryOrphans;
 
-        public MapThreadInfo(Action<T> callback, T parameter, Dictionary<string, CellEdge> edgeDictionary) {
+        public MapThreadInfo(Action<T> callback, T parameter, Dictionary<string, CellEdge> edgeDictionary, Dictionary<string, CellEdge> edgeDictionaryOrphans) {
             this.callback = callback;
             this.parameter = parameter;
             this.edgeDictionary = edgeDictionary;
+            this.edgeDictionaryOrphans = edgeDictionaryOrphans;
         }
 
     }
